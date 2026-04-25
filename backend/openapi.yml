@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: PromptRefiner API
+  description: |
+    Analyze, refine, and estimate costs for LLM prompts.
+
+    PromptRefiner helps you understand token usage and costs across multiple LLM providers
+    (OpenAI and Anthropic), and uses AI to rewrite your prompts for clarity, specificity,
+    and token efficiency.
+
+    ## Features
+    - **Token Analysis** — Count tokens for your prompt across 7+ models
+    - **Cost Estimation** — Calculate input/output costs per model
+    - **Prompt Refinement** — LLM-powered rewriting with multiple styles
+    - **Side-by-Side Comparison** — Original vs refined with savings breakdown
+
+    ## Authentication
+    This API does not require authentication. However, the `/api/refine` endpoint
+    requires the server to have valid LLM provider API keys configured in the `.env` file.
+  version: 0.1.0
+  contact:
+    name: PromptRefiner
+    url: https://github.com/your-username/PromptRefining
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: Analysis
+    description: Token counting and cost estimation endpoints
+  - name: Refinement
+    description: LLM-powered prompt refinement endpoints
+  - name: System
+    description: Health checks and server status
+
+paths:
+  /api/health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Returns the server status and API version.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                version: 0.1.0
+
+  /api/analyze:
+    post:
+      tags:
+        - Analysis
+      summary: Analyze a prompt
+      description: |
+        Counts tokens and estimates costs for a prompt across one or more LLM models.
+        If no models are specified, analysis runs against all supported models.
+      operationId: analyzePrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+            examples:
+              allModels:
+                summary: Analyze across all models
+                value:
+                  prompt: "Explain quantum computing in simple terms"
+              specificModels:
+                summary: Analyze for specific models only
+                value:
+                  prompt: "Explain quantum computing in simple terms"
+                  models:
+                    - gpt-4o
+                    - claude-3-5-sonnet-20241022
+      responses:
+        "200":
+          description: Token analysis and cost estimation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeResponse"
+              example:
+                prompt: "Explain quantum computing in simple terms"
+                character_count: 41
+                word_count: 6
+                token_counts:
+                  - model: gpt-4o
+                    provider: openai
+                    token_count: 6
+                    cost_input_per_1k: 0.0025
+                    cost_output_per_1k: 0.01
+                    estimated_input_cost: 0.000015
+                    estimated_output_cost: 0.00006
+                  - model: claude-3-5-sonnet-20241022
+                    provider: anthropic
+                    token_count: 7
+                    cost_input_per_1k: 0.003
+                    cost_output_per_1k: 0.015
+                    estimated_input_cost: 0.000021
+                    estimated_output_cost: 0.000105
+        "400":
+          description: Invalid request (unsupported model or empty prompt)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: "Unsupported model: gpt-5"
+        "422":
+          description: Validation error (missing or malformed fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /api/refine:
+    post:
+      tags:
+        - Refinement
+      summary: Refine a prompt
+      description: |
+        Sends the prompt to an LLM for refinement and returns the improved version
+        along with a full comparison of token counts and cost savings across all models.
+
+        **Requires** a valid API key for the selected provider to be configured on the server.
+
+        ### Refinement Styles
+        | Style | Behavior |
+        |-------|----------|
+        | `concise` | Aggressively minimize tokens, strip redundancy |
+        | `balanced` | Balance clarity with brevity (default) |
+        | `detailed` | Prioritize completeness, add context if helpful |
+        | `structured` | Reorganize with sections, numbered steps, output format |
+      operationId: refinePrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefineRequest"
+            examples:
+              defaultRefinement:
+                summary: Refine with defaults (OpenAI, balanced)
+                value:
+                  prompt: "Write me a python script that takes a csv file and converts it to json, make sure it handles errors"
+              conciseAnthropic:
+                summary: Concise refinement via Anthropic
+                value:
+                  prompt: "Write me a python script that takes a csv file and converts it to json, make sure it handles errors"
+                  provider: anthropic
+                  refinement_style: concise
+              structuredOpenAI:
+                summary: Structured refinement with specific model
+                value:
+                  prompt: "I need a REST API for managing a todo list with create read update delete operations"
+                  provider: openai
+                  model: gpt-4o
+                  refinement_style: structured
+      responses:
+        "200":
+          description: Refined prompt with full comparison analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefinedPrompt"
+        "400":
+          description: Provider API key not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: "OpenAI API key not configured"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "502":
+          description: LLM provider request failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: "LLM refinement failed: Rate limit exceeded"
+
+  /api/models:
+    get:
+      tags:
+        - Analysis
+      summary: List supported models
+      description: Returns all supported models with their provider and pricing information.
+      operationId: listModels
+      responses:
+        "200":
+          description: List of supported models with pricing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsResponse"
+              example:
+                models:
+                  - name: gpt-4o
+                    provider: openai
+                    input_price_per_1m: 2.50
+                    output_price_per_1m: 10.00
+                  - name: gpt-4o-mini
+                    provider: openai
+                    input_price_per_1m: 0.15
+                    output_price_per_1m: 0.60
+                  - name: claude-3-5-sonnet-20241022
+                    provider: anthropic
+                    input_price_per_1m: 3.00
+                    output_price_per_1m: 15.00
+
+components:
+  schemas:
+    # ---------- Request Schemas ----------
+
+    AnalyzeRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: The prompt text to analyze.
+          example: "Explain quantum computing in simple terms"
+        models:
+          type: array
+          items:
+            type: string
+            enum:
+              - gpt-4o
+              - gpt-4o-mini
+              - gpt-4-turbo
+              - gpt-3.5-turbo
+              - claude-3-5-sonnet-20241022
+              - claude-3-5-haiku-20241022
+              - claude-3-opus-20240229
+          nullable: true
+          description: >
+            List of model names to analyze. If omitted or null,
+            analysis runs against all supported models.
+          example:
+            - gpt-4o
+            - claude-3-5-sonnet-20241022
+
+    RefineRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: The prompt text to refine.
+          example: "Write me a python script that converts csv to json with error handling"
+        provider:
+          type: string
+          enum:
+            - openai
+            - anthropic
+          default: openai
+          description: LLM provider to use for the refinement.
+        model:
+          type: string
+          nullable: true
+          description: >
+            Specific model to use for refinement. If omitted, defaults to the
+            provider's best model (gpt-4o for OpenAI, claude-3-5-sonnet for Anthropic).
+          example: gpt-4o
+        refinement_style:
+          type: string
+          enum:
+            - concise
+            - balanced
+            - detailed
+            - structured
+          default: balanced
+          description: The refinement approach to apply.
+
+    # ---------- Response Schemas ----------
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 0.1.0
+
+    TokenCount:
+      type: object
+      properties:
+        model:
+          type: string
+          description: Model name.
+          example: gpt-4o
+        provider:
+          type: string
+          description: Provider name (openai or anthropic).
+          example: openai
+        token_count:
+          type: integer
+          description: Number of tokens in the prompt for this model.
+          example: 6
+        cost_input_per_1k:
+          type: number
+          format: float
+          description: Cost per 1,000 input tokens in USD.
+          example: 0.0025
+        cost_output_per_1k:
+          type: number
+          format: float
+          description: Cost per 1,000 output tokens in USD.
+          example: 0.01
+        estimated_input_cost:
+          type: number
+          format: float
+          description: Estimated cost for this prompt as input in USD.
+          example: 0.000015
+        estimated_output_cost:
+          type: number
+          format: float
+          description: Estimated cost if this token count were output in USD.
+          example: 0.00006
+
+    AnalyzeResponse:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: The analyzed prompt text.
+        character_count:
+          type: integer
+          description: Number of characters in the prompt.
+          example: 41
+        word_count:
+          type: integer
+          description: Number of words in the prompt.
+          example: 6
+        token_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenCount"
+          description: Token counts and costs per model.
+
+    RefinedPrompt:
+      type: object
+      properties:
+        original_prompt:
+          type: string
+          description: The original prompt submitted by the user.
+        refined_prompt:
+          type: string
+          description: The LLM-refined version of the prompt.
+        refinement_style:
+          type: string
+          description: The refinement style that was applied.
+          example: balanced
+        provider_used:
+          type: string
+          description: The LLM provider used for refinement.
+          example: openai
+        model_used:
+          type: string
+          description: The specific model used for refinement.
+          example: gpt-4o
+        original_analysis:
+          $ref: "#/components/schemas/AnalyzeResponse"
+          description: Full token/cost analysis of the original prompt.
+        refined_analysis:
+          $ref: "#/components/schemas/AnalyzeResponse"
+          description: Full token/cost analysis of the refined prompt.
+        token_savings:
+          type: object
+          additionalProperties:
+            type: integer
+          description: >
+            Token savings per model (original - refined).
+            Positive values indicate tokens saved.
+          example:
+            gpt-4o: 5
+            gpt-4o-mini: 5
+            claude-3-5-sonnet-20241022: 4
+        cost_savings:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+          description: >
+            Cost savings in USD per model (original - refined).
+            Positive values indicate money saved.
+          example:
+            gpt-4o: 0.0000125
+            gpt-4o-mini: 0.00000075
+            claude-3-5-sonnet-20241022: 0.000012
+
+    ModelInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Model name.
+          example: gpt-4o
+        provider:
+          type: string
+          description: Provider name.
+          example: openai
+        input_price_per_1m:
+          type: number
+          format: float
+          description: Price per 1 million input tokens in USD.
+          example: 2.50
+        output_price_per_1m:
+          type: number
+          format: float
+          description: Price per 1 million output tokens in USD.
+          example: 10.00
+
+    ModelsResponse:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelInfo"
+
+    # ---------- Error Schemas ----------
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message.
+          example: "Unsupported model: gpt-5"
+
+    ValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                description: Location of the validation error.
+                example: ["body", "prompt"]
+              msg:
+                type: string
+                description: Error message.
+                example: "String should have at least 1 character"
+              type:
+                type: string
+                description: Error type code.
+                example: "string_too_short"
