@@ -18,6 +18,53 @@ class AnalyzeResponse(BaseModel):
     token_counts: list[TokenCount]
 
 
+class MissingElement(BaseModel):
+    element: str
+    impact: str
+    explanation: str
+
+
+class Improvement(BaseModel):
+    category: str
+    before: str
+    after: str
+    why: str
+
+
+class QualityScore(BaseModel):
+    original: int
+    refined: int
+
+
+class PromptQualityBreakdown(BaseModel):
+    clarity: QualityScore
+    specificity: QualityScore
+    structure: QualityScore
+    token_efficiency: QualityScore
+    completeness: QualityScore
+
+
+class CliCommand(BaseModel):
+    command: str
+    description: str
+    example: str
+
+
+class CliTips(BaseModel):
+    claude_cli: list[CliCommand]
+    copilot_cli: list[CliCommand]
+    general_tips: list[str]
+
+
+class ComparisonAnalysis(BaseModel):
+    score_original: int
+    score_refined: int
+    missing_elements: list[MissingElement]
+    improvements_made: list[Improvement]
+    prompt_quality_breakdown: PromptQualityBreakdown
+    cli_tips: CliTips
+
+
 class RefinedPrompt(BaseModel):
     model_config = {"protected_namespaces": ()}
 
@@ -30,6 +77,7 @@ class RefinedPrompt(BaseModel):
     refined_analysis: AnalyzeResponse
     token_savings: dict[str, int]
     cost_savings: dict[str, float]
+    comparison: ComparisonAnalysis | None = None
 
 
 class ModelInfo(BaseModel):

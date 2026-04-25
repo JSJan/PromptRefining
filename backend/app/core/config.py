@@ -2,7 +2,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
-GITHUB_MODELS_BASE_URL = "https://models.inference.ai.github.com/v1"
+GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
 
 
 class Settings(BaseSettings):

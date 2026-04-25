@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
 
 from app.models.request import RefineRequest
-from app.models.response import RefinedPrompt, AnalyzeResponse, TokenCount
+from app.models.response import RefinedPrompt, AnalyzeResponse, TokenCount, ComparisonAnalysis
 from app.services.refiner import refine_prompt
+from app.services.comparator import analyze_comparison
 from app.services.tokenizer import count_tokens
 from app.services.cost import calculate_cost, calculate_cost_per_1k
 from app.core.pricing import MODEL_PRICING, MODEL_PROVIDERS
@@ -70,6 +71,19 @@ async def refine_user_prompt(request: RefineRequest):
             orig.estimated_input_cost - ref.estimated_input_cost, 8
         )
 
+    # Generate detailed comparison analysis
+    comparison = None
+    try:
+        comparison_data = await analyze_comparison(
+            original=request.prompt,
+            refined=refined_text,
+            provider=provider_used if provider_used != "github-models" else "openai",
+            model=model_used,
+        )
+        comparison = ComparisonAnalysis(**comparison_data)
+    except Exception:
+        pass  # Comparison is optional — don't fail the whole request
+
     return RefinedPrompt(
         original_prompt=request.prompt,
         refined_prompt=refined_text,
@@ -80,4 +94,5 @@ async def refine_user_prompt(request: RefineRequest):
         refined_analysis=refined_analysis,
         token_savings=token_savings,
         cost_savings=cost_savings,
+        comparison=comparison,
     )

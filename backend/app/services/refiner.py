@@ -55,16 +55,19 @@ async def _refine_with_openai(
     # Use direct OpenAI key if available, otherwise fall back to GitHub token
     if settings.openai_api_key:
         client = AsyncOpenAI(api_key=settings.openai_api_key)
+        api_model = model
     elif settings.github_token:
         client = AsyncOpenAI(
             api_key=settings.github_token,
             base_url=GITHUB_MODELS_BASE_URL,
         )
+        # GitHub Models requires provider prefix (e.g. "openai/gpt-4o")
+        api_model = f"openai/{model}" if "/" not in model else model
     else:
         raise ValueError("No OpenAI API key or GitHub token configured")
 
     response = await client.chat.completions.create(
-        model=model,
+        model=api_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},

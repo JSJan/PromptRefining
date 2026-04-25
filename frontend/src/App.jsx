@@ -3,6 +3,8 @@ import PromptInput from "./components/PromptInput";
 import AnalysisPanel from "./components/AnalysisPanel";
 import RefinedOutput from "./components/RefinedOutput";
 import CostComparison from "./components/CostComparison";
+import ComparisonDetail from "./components/ComparisonDetail";
+import CliTipsPanel from "./components/CliTipsPanel";
 import ModelSelector from "./components/ModelSelector";
 import { analyzePrompt, refinePrompt } from "./services/api";
 
@@ -87,6 +89,8 @@ export default function App() {
           </div>
 
           {refinement && <RefinedOutput refinement={refinement} />}
+          {refinement?.comparison && <ComparisonDetail comparison={refinement.comparison} />}
+          {refinement?.comparison?.cli_tips && <CliTipsPanel cliTips={refinement.comparison.cli_tips} />}
         </div>
 
         <div className="space-y-4">
